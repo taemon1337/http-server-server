@@ -3,12 +3,13 @@ package server
 import (
   "os"
   "log"
+  "strings"
   "net/http"
   "github.com/gin-gonic/gin"
   "golang.org/x/sync/errgroup"
   "taemon1337/http-test-server/pkg/yamlable"
-  "taemon1337/http-test-server/pkg/template"
   "taemon1337/http-test-server/pkg/config"
+  "taemon1337/http-test-server/pkg/templates"
   "taemon1337/http-test-server/pkg/tls"
 )
 
@@ -21,9 +22,18 @@ type Server struct {
 
 func NewServer() *Server {
   r := gin.Default()
-  r.SetHTMLTemplate(template.IndexTemplate)
+  r.HTMLRender = templates.GetTemplates()
 
-  r.Any("/*any", func(c *gin.Context) {
+  return &Server{
+    Router:   r,
+    Logger:   log.New(os.Stderr, "", 0),
+    Config:   config.NewConfig(),
+    SelfSign: nil,
+  }
+}
+
+func (s *Server) SetRoutes() {
+  s.Router.Any("/*any", func(c *gin.Context) {
     req := yamlable.NewYamlableRequest(c)
 
     accept := c.GetHeader("Accept")
@@ -31,6 +41,30 @@ func NewServer() *Server {
 
     if format != "" {
       accept = format
+    }
+
+    if req.URL == "/health" {
+      c.String(http.StatusOK, "OK")
+      return
+    }
+
+    if req.URL == "/certs" && s.ServingTLS() {
+      c.HTML(http.StatusOK, "certs.html", gin.H{})
+      return
+    }
+
+    if strings.HasPrefix(req.URL, "/download/") && s.ServingTLS() {
+      switch req.URL {
+        case "/download/ca.crt":
+          c.String(http.StatusOK, s.SelfSign.EncodeCACertToPem().String())
+        case "/download/server.crt":
+          c.String(http.StatusOK, s.SelfSign.EncodeCertToPem().String())
+        case "/download/client.crt":
+          c.String(http.StatusOK, s.SelfSign.EncodeClientCertToPem().String())
+        case "/download/client.key":
+          c.String(http.StatusOK, s.SelfSign.EncodeClientCertPrivateKeyToPem().String())
+      }
+      return
     }
 
     switch accept {
@@ -46,13 +80,6 @@ func NewServer() *Server {
         })
     }
   })
-
-  return &Server{
-    Router:   r,
-    Logger:   log.New(os.Stderr, "", 0),
-    Config:   config.NewConfig(),
-    SelfSign: nil,
-  }
 }
 
 func (s *Server) Configure() error {
@@ -63,7 +90,12 @@ func (s *Server) Configure() error {
 
   s.SelfSign = ss
 
-  return s.SelfSign.LoadTLSConfig()
+  err = s.SelfSign.LoadTLSConfig()
+  if err != nil {
+    return err
+  }
+
+  return nil
 }
 
 func (s *Server) ServingTLS() bool {
@@ -71,7 +103,16 @@ func (s *Server) ServingTLS() bool {
 }
 
 func (s *Server) Run() error {
+  s.SetRoutes()
+
   g := new(errgroup.Group)
+
+  if s.Config.UseHTTP {
+    g.Go(func() error {
+      s.Logger.Printf("[SERVER] Starting HTTP test server on %s...", s.Config.HttpAddr)
+      return s.Router.Run(s.Config.HttpAddr)
+    })
+  }
 
   if s.Config.UseTLS {
     err := s.Configure()
@@ -80,11 +121,6 @@ func (s *Server) Run() error {
       return err
     }
   }
-
-  g.Go(func() error {
-    s.Logger.Printf("[SERVER] Starting HTTP test server on %s...", s.Config.HttpAddr)
-    return s.Router.Run(s.Config.HttpAddr)
-  })
 
   if s.ServingTLS() {
     g.Go(func() error {

@@ -1,0 +1,76 @@
+{{- if or .Values.tls.enabled .Values.http.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "httptest.fullname" . }}
+  labels:
+    {{- include "httptest.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "httptest.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "httptest.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "httptest.serviceAccountName" . }}
+      containers:
+        - name: {{ .Release.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+{{- if .Values.http.enabled }}
+            - "--http"
+            - "--http-addr"
+            - ":{{ .Values.http.port }}"
+{{- else if .Values.tls.enabled }}
+            - "--tls"
+            - "--tls-addr"
+            - ":{{ .Values.tls.port }}"
+{{- end }}
+          livenessProbe:
+            httpGet:
+              path: /health
+{{- if .Values.http.enabled }}
+              port: {{ .Values.http.port }}
+{{- else if .Values.tls.enabled }}
+              port: {{ .Values.tls.port }}
+              scheme: HTTPS
+{{- end }}
+            initialDelaySeconds: 3
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+{{- if .Values.http.enabled }}
+              port: {{ .Values.http.port }}
+{{- else if .Values.tls.enabled }}
+              port: {{ .Values.tls.port }}
+              scheme: HTTPS
+{{- end }}
+            initialDelaySeconds: 3
+            periodSeconds: 15
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

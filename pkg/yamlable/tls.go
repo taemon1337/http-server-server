@@ -4,6 +4,7 @@ import (
   "fmt"
   "time"
   "net/http"
+  "crypto/x509"
 )
 
 type YamlableTlsCert struct {
@@ -35,12 +36,28 @@ func NewYamlableTlsConn(r *http.Request) *YamlableTlsConn {
     return nil
   }
 
+  verified := make([]*YamlableTlsCert, 0)
+  for _, chain := range r.TLS.VerifiedChains {
+    for _, crt := range chain {
+      verified = append(verified, NewYamlableTlsCert(crt))
+    }
+  }
+
   return &YamlableTlsConn{
-    Handshook: r.TLS.HandshakeComplete,
-    Cipher: fmt.Sprintf("%d", r.TLS.CipherSuite),
-    Proto: r.TLS.NegotiatedProtocol,
-    Servername: r.TLS.ServerName,
+    Handshook:          r.TLS.HandshakeComplete,
+    Cipher:             CipherSuiteToString(r.TLS.CipherSuite),
+    Proto:              r.TLS.NegotiatedProtocol,
+    Servername:         r.TLS.ServerName,
+    VerifiedCerts:      verified,
   }
 }
 
-
+func NewYamlableTlsCert(cert *x509.Certificate) *YamlableTlsCert {
+  return &YamlableTlsCert{
+    Subject: cert.Subject.CommonName,
+    Version: cert.Version,
+    Serial:  fmt.Sprintf("%b", cert.SerialNumber),
+    Issuer:  cert.Issuer.CommonName,
+    KeyUsage: fmt.Sprintf("%s", cert.KeyUsage),
+  }
+}

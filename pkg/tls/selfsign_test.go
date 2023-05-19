@@ -2,14 +2,13 @@ package tls
 
 import (
   "testing"
-)
-
-var (
-  OPTS = map[string]string{"foo": "bar"}
+  "taemon1337/http-test-server/pkg/config"
 )
 
 func TestSelfSign(t *testing.T) {
-  ss, err := NewSelfSign(OPTS, OPTS)
+  cfg := config.NewConfig()
+
+  ss, err := NewSelfSign(cfg)
   if err != nil {
     t.Fatalf("%s", err)
   }

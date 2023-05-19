@@ -14,7 +14,11 @@ type SelfSign struct {
   CACertBytes   []byte
   Cert          *x509.Certificate
   CertBytes     []byte
-  PrivateKey    *rsa.PrivateKey
+  CertKey       *rsa.PrivateKey
+  ClientCert    *x509.Certificate
+  ClientCertKey *rsa.PrivateKey
+  ClientBytes   []byte
+  CAPrivateKey  *rsa.PrivateKey
   TLSConfig     *tls.Config
 }
 
@@ -29,17 +33,37 @@ func NewSelfSign(cfg *config.Config) (*SelfSign, error) {
     return nil, err
   }
 
-  key, err := NewRSAKey(cfg.KeyOptions())
+  clientcert, err := NewCertificate(cfg.ClientCertOptions())
   if err != nil {
     return nil, err
   }
 
-  selfsignedca, err := SignCertificate(ca, ca, key)
+  cakey, err := NewRSAKey(cfg.KeyOptions())
   if err != nil {
     return nil, err
   }
 
-  signed, err := SignCertificate(ca, cert, key)
+  certkey, err := NewRSAKey(cfg.KeyOptions())
+  if err != nil {
+    return nil, err
+  }
+
+  clientcertkey, err := NewRSAKey(cfg.KeyOptions())
+  if err != nil {
+    return nil, err
+  }
+
+  selfsignedca, err := SignCertificate(ca, ca, &cakey.PublicKey, cakey)
+  if err != nil {
+    return nil, err
+  }
+
+  signed, err := SignCertificate(ca, cert, &certkey.PublicKey, cakey)
+  if err != nil {
+    return nil, err
+  }
+
+  clientsigned, err := SignCertificate(ca, clientcert, &clientcertkey.PublicKey, cakey)
   if err != nil {
     return nil, err
   }
@@ -50,7 +74,11 @@ func NewSelfSign(cfg *config.Config) (*SelfSign, error) {
     CACertBytes: selfsignedca,
     Cert: cert,
     CertBytes: signed,
-    PrivateKey: key,
+    CertKey: certkey,
+    ClientCert: clientcert,
+    ClientBytes: clientsigned,
+    ClientCertKey: clientcertkey,
+    CAPrivateKey: cakey,
     TLSConfig: nil,
   }, nil
 }
@@ -59,19 +87,42 @@ func (ss *SelfSign) EncodeCertToPem() *bytes.Buffer {
   return EncodeToPem(ss.CertBytes)
 }
 
+func (ss *SelfSign) EncodeClientCertToPem() *bytes.Buffer {
+  return EncodeToPem(ss.ClientBytes)
+}
+
 func (ss *SelfSign) EncodeCACertToPem() *bytes.Buffer {
   return EncodeToPem(ss.CACertBytes)
 }
 
-func (ss *SelfSign) EncodePrivateKeyToPem() *bytes.Buffer {
-  return EncodePrivateKeyToPem(ss.PrivateKey)
+func (ss *SelfSign) EncodeCAPrivateKeyToPem() *bytes.Buffer {
+  return EncodePrivateKeyToPem(ss.CAPrivateKey)
+}
+
+func (ss *SelfSign) EncodeCertPrivateKeyToPem() *bytes.Buffer {
+  return EncodePrivateKeyToPem(ss.CertKey)
+}
+
+func (ss *SelfSign) EncodeClientCertPrivateKeyToPem() *bytes.Buffer {
+  return EncodePrivateKeyToPem(ss.ClientCertKey)
+}
+
+func (ss *SelfSign) CertChain() string {
+  return ss.EncodeClientCertToPem().String() + ss.EncodeCACertToPem().String()
+}
+
+func (ss *SelfSign) CertAndKey() string {
+  return ss.EncodeClientCertToPem().String() + ss.EncodeClientCertPrivateKeyToPem().String()
+}
+
+func (ss *SelfSign) ClientCertAndKey() string {
+  return ss.EncodeClientCertToPem().String() + ss.EncodeClientCertPrivateKeyToPem().String()
 }
 
 func (ss *SelfSign) String() string {
   s := ""
   s += ss.EncodeCACertToPem().String() + "\n"
   s += ss.EncodeCertToPem().String() + "\n"
+  s += ss.EncodeClientCertToPem().String() + "\n"
   return s
 }
-
-

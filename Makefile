@@ -1,4 +1,4 @@
-IMAGE := containeryard.evoforge.org/tpstell/http-test-server
+IMAGE := ${DOCKER_REPO}/tpstell/http-test-server
 TAG := 0.0.1
 
 build:
@@ -8,6 +8,9 @@ build:
 docker:
 	docker build -t ${IMAGE}:${TAG} .
 	sudo chown -R ${USER}. .
+
+push:
+	docker push ${IMAGE}:${TAG}
 
 test:
 	go test ./...

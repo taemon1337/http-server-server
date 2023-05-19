@@ -67,8 +67,8 @@ func NewCertificate(opts map[string]string) (*x509.Certificate, error) {
   return cert, nil
 }
 
-func SignCertificate(cert, cacert *x509.Certificate, key *rsa.PrivateKey) ([]byte, error) {
-  signed, err := x509.CreateCertificate(rand.Reader, cert, cacert, &key.PublicKey, key)
+func SignCertificate(cert, cacert *x509.Certificate, pubkey *rsa.PublicKey, privkey *rsa.PrivateKey) ([]byte, error) {
+  signed, err := x509.CreateCertificate(rand.Reader, cert, cacert, pubkey, privkey)
   if err != nil {
     return nil, err
   }
