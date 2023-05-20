@@ -1,11 +1,19 @@
 package config
 
+import (
+  "fmt"
+  "gopkg.in/yaml.v3"
+)
+
 type Config struct {
   UseHTTP           bool
   UseTLS            bool
   HttpAddr          string
   HttpsAddr         string
-  SkipVerify        string
+  CAFile            string
+  CertFile          string
+  KeyFile           string
+  SkipVerify        bool
   CommonName        string
   ClientAuth        string
   CACommonName      string
@@ -49,7 +57,10 @@ func NewConfig() *Config {
     UseTLS:           false,
     HttpAddr:         ":8080",
     HttpsAddr:        ":8443",
-    SkipVerify:       "false",
+    CAFile:           "",
+    CertFile:         "",
+    KeyFile:          "",
+    SkipVerify:       false,
     CommonName:       "server.localhost",
     ClientAuth:       "none",
     CACommonName:     "root.localhost",
@@ -146,4 +157,12 @@ func (c *Config) KeyOptions() map[string]string {
   return map[string]string{
     "keysize": c.RSAKeySize,
   }
+}
+
+func (c *Config) String() string {
+  s, err := yaml.Marshal(c)
+  if err != nil {
+    return fmt.Sprintf("%s", err)
+  }
+  return string(s)
 }

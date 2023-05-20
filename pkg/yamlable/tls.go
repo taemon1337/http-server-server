@@ -58,6 +58,6 @@ func NewYamlableTlsCert(cert *x509.Certificate) *YamlableTlsCert {
     Version: cert.Version,
     Serial:  fmt.Sprintf("%b", cert.SerialNumber),
     Issuer:  cert.Issuer.CommonName,
-    KeyUsage: fmt.Sprintf("%s", cert.KeyUsage),
+    KeyUsage: fmt.Sprintf("%d", cert.KeyUsage),
   }
 }

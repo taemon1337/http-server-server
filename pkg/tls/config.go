@@ -5,22 +5,15 @@ import (
   "crypto/x509"
 )
 
-func (ss *SelfSign) LoadTLSConfig() error {
+func NewTLSConfig(cn, inclientauth, inmintls, inmaxtls string, skipverify bool) *tls.Config {
   var clientauth tls.ClientAuthType = tls.NoClientCert
   var mintls uint16 = tls.VersionTLS10
   var maxtls uint16 = tls.VersionTLS13
-  certPem := ss.EncodeCertToPem()
-  certPrivKeyPem := ss.EncodeCertPrivateKeyToPem()
 
-  serverCert, err := tls.X509KeyPair(certPem.Bytes(), certPrivKeyPem.Bytes())
-  if err != nil {
-    return err
-  }
+  mintls = ParseTlsVersion(inmintls, mintls)
+  maxtls = ParseTlsVersion(inmaxtls, maxtls)
 
-  mintls = ParseTlsVersion(ss.Config.MinTLS, mintls)
-  maxtls = ParseTlsVersion(ss.Config.MaxTLS, maxtls)
-
-  switch ss.Config.ClientAuth {
+  switch inclientauth {
     case "none":
       clientauth = tls.NoClientCert
     case "request":
@@ -35,23 +28,34 @@ func (ss *SelfSign) LoadTLSConfig() error {
       clientauth = tls.NoClientCert
   }
 
-  ss.TLSConfig = &tls.Config{
-    Certificates:         []tls.Certificate{serverCert},
-    ServerName:           ss.Config.CommonName,
+  return &tls.Config{
+    ServerName:           cn,
     ClientAuth:           clientauth,
-    InsecureSkipVerify:   ss.Config.SkipVerify == "true",
+    InsecureSkipVerify:   skipverify,
     MinVersion:           mintls,
     MaxVersion:           maxtls,
-//    CipherSuites:
+  }
+}
+
+
+func (ss *SelfSign) TLSConfig() (*tls.Config, error) {
+  cfg := NewTLSConfig(ss.Config.CommonName, ss.Config.ClientAuth, ss.Config.MinTLS, ss.Config.MaxTLS, ss.Config.SkipVerify)
+
+  cert, err := tls.X509KeyPair(ss.EncodeCertToPem().Bytes(), ss.EncodeCertPrivateKeyToPem().Bytes())
+  if err != nil {
+    return nil, err
   }
 
-  if ss.TLSConfig.ClientAuth == tls.VerifyClientCertIfGiven || ss.TLSConfig.ClientAuth == tls.RequireAndVerifyClientCert {
+  cfg.Certificates = []tls.Certificate{cert}
+
+  if cfg.ClientAuth == tls.VerifyClientCertIfGiven || cfg.ClientAuth == tls.RequireAndVerifyClientCert {
     certpool := x509.NewCertPool()
     certpool.AddCert(ss.CACert)
-    ss.TLSConfig.ClientCAs = certpool
+    certpool.AppendCertsFromPEM(ss.EncodeCACertToPem().Bytes())
+    cfg.ClientCAs = certpool
   }
 
-  return nil
+  return cfg, nil
 }
 
 func ParseTlsVersion(s string, defaultvalue uint16) uint16 {

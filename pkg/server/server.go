@@ -5,6 +5,9 @@ import (
   "log"
   "strings"
   "net/http"
+  "io/ioutil"
+  gotls "crypto/tls"
+  "crypto/x509"
   "github.com/gin-gonic/gin"
   "golang.org/x/sync/errgroup"
   "taemon1337/http-test-server/pkg/yamlable"
@@ -18,6 +21,7 @@ type Server struct {
   Config            *config.Config
   Logger            *log.Logger
   SelfSign          *tls.SelfSign
+  TLSConfig         *gotls.Config
 }
 
 func NewServer() *Server {
@@ -29,6 +33,7 @@ func NewServer() *Server {
     Logger:   log.New(os.Stderr, "", 0),
     Config:   config.NewConfig(),
     SelfSign: nil,
+    TLSConfig: nil,
   }
 }
 
@@ -82,6 +87,39 @@ func (s *Server) SetRoutes() {
   })
 }
 
+func (s *Server) LoadTLS() error {
+  if s.Config.CertFile == "" {
+    s.Logger.Printf("[SERVER] Generating self-signed certs as --tls is enabled and no --cert-file specified.")
+    return s.Configure()
+  }
+
+  s.TLSConfig = tls.NewTLSConfig(s.Config.CommonName, s.Config.ClientAuth, s.Config.MinTLS, s.Config.MaxTLS, s.Config.SkipVerify)
+
+  if s.Config.CAFile != "" {
+    s.Logger.Printf("[SERVER] Loading CA file from '%s'", s.Config.CAFile)
+    cacert, err := ioutil.ReadFile(s.Config.CAFile)
+    if err != nil {
+      return err
+    }
+
+    capool := x509.NewCertPool()
+    capool.AppendCertsFromPEM(cacert)
+    s.TLSConfig.ClientCAs = capool
+  }
+
+  if s.Config.CertFile != "" {
+    s.Logger.Printf("[SERVER] Loading server cert file from '%s' and key from '%s'", s.Config.CertFile, s.Config.KeyFile)
+    var err error
+    s.TLSConfig.Certificates = make([]gotls.Certificate, 1)
+    s.TLSConfig.Certificates[0], err = gotls.LoadX509KeyPair(s.Config.CertFile, s.Config.KeyFile)
+    if err != nil {
+      return err
+    }
+  }
+
+  return nil
+}
+
 func (s *Server) Configure() error {
   ss, err := tls.NewSelfSign(s.Config)
   if err != nil {
@@ -90,16 +128,18 @@ func (s *Server) Configure() error {
 
   s.SelfSign = ss
 
-  err = s.SelfSign.LoadTLSConfig()
+  tlscfg, err := s.SelfSign.TLSConfig()
   if err != nil {
     return err
   }
+
+  s.TLSConfig = tlscfg
 
   return nil
 }
 
 func (s *Server) ServingTLS() bool {
-  return s.SelfSign != nil && s.SelfSign.TLSConfig != nil
+  return s.Config.UseTLS && s.TLSConfig != nil
 }
 
 func (s *Server) Run() error {
@@ -115,7 +155,7 @@ func (s *Server) Run() error {
   }
 
   if s.Config.UseTLS {
-    err := s.Configure()
+    err := s.LoadTLS()
     if err != nil {
       s.Logger.Printf("Could not configure TLS - %s", err)
       return err
@@ -128,8 +168,9 @@ func (s *Server) Run() error {
       srv := http.Server{
         Addr: s.Config.HttpsAddr,
         Handler: s.Router,
-        TLSConfig:  s.SelfSign.TLSConfig,
+        TLSConfig:  s.TLSConfig,
       }
+
       return srv.ListenAndServeTLS("", "")
     })
   } else {

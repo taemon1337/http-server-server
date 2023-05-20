@@ -4,7 +4,6 @@ import (
   "bytes"
   "crypto/rsa"
   "crypto/x509"
-  "crypto/tls"
   "taemon1337/http-test-server/pkg/config"
 )
 
@@ -19,7 +18,6 @@ type SelfSign struct {
   ClientCertKey *rsa.PrivateKey
   ClientBytes   []byte
   CAPrivateKey  *rsa.PrivateKey
-  TLSConfig     *tls.Config
 }
 
 func NewSelfSign(cfg *config.Config) (*SelfSign, error) {
@@ -79,7 +77,6 @@ func NewSelfSign(cfg *config.Config) (*SelfSign, error) {
     ClientBytes: clientsigned,
     ClientCertKey: clientcertkey,
     CAPrivateKey: cakey,
-    TLSConfig: nil,
   }, nil
 }
 
