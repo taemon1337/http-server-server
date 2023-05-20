@@ -14,3 +14,6 @@ push:
 
 test:
 	go test ./...
+
+docker-run:
+	docker run -it --rm -p 8080:8080 -p 8443:8443 ${IMAGE}:${TAG} --http --tls --clientauth mutual --min-tls-version 1.3

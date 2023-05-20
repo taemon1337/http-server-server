@@ -100,7 +100,7 @@ func NewConfig() *Config {
 }
 
 func (c *Config) CAOptions() map[string]string {
-  return map[string]string{
+  return CleanMap(map[string]string{
     "cn":  c.CACommonName,
     "org": c.CAOrganization,
     "ou": c.CAOrganizationUnit,
@@ -113,11 +113,11 @@ func (c *Config) CAOptions() map[string]string {
     "client": "true",
     "server": "true",
     "years": c.CAYearsValid,
-  }
+  })
 }
 
 func (c *Config) CertOptions() map[string]string {
-  return map[string]string{
+  return CleanMap(map[string]string{
     "cn":  c.CommonName,
     "org": c.CertOrganization,
     "ou": c.CertOrganizationUnit,
@@ -126,16 +126,15 @@ func (c *Config) CertOptions() map[string]string {
     "locality": c.CertLocality,
     "street": c.CertStreetAddress,
     "postal": c.CertPostalCode,
-    "isCA": "true",
     "client": "true",
     "server": "true",
     "ips": c.CertIPAddresses,
     "domains":  c.CertDomains,
     "years": c.CertYearsValid,
-  }
+  })
 }
 func (c *Config) ClientCertOptions() map[string]string {
-  return map[string]string{
+  return CleanMap(map[string]string{
     "cn":  c.ClientCertCommonName,
     "org": c.ClientCertOrganization,
     "ou": c.ClientCertOrganizationUnit,
@@ -144,19 +143,17 @@ func (c *Config) ClientCertOptions() map[string]string {
     "locality": c.ClientCertLocality,
     "street": c.ClientCertStreetAddress,
     "postal": c.ClientCertPostalCode,
-    "isCA": "true",
     "client": "true",
-    "server": "true",
     "ips": c.ClientCertIPAddresses,
     "domains":  c.ClientCertDomains,
     "years": c.ClientCertYearsValid,
-  }
+  })
 }
 
 func (c *Config) KeyOptions() map[string]string {
-  return map[string]string{
+  return CleanMap(map[string]string{
     "keysize": c.RSAKeySize,
-  }
+  })
 }
 
 func (c *Config) String() string {
@@ -165,4 +162,13 @@ func (c *Config) String() string {
     return fmt.Sprintf("%s", err)
   }
   return string(s)
+}
+
+func CleanMap(opts map[string]string) map[string]string {
+  for k,v := range opts {
+    if v == "" {
+      delete(opts, k)
+    }
+  }
+  return opts
 }

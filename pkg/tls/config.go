@@ -51,12 +51,30 @@ func (ss *SelfSign) TLSConfig() (*tls.Config, error) {
   if cfg.ClientAuth == tls.VerifyClientCertIfGiven || cfg.ClientAuth == tls.RequireAndVerifyClientCert {
     certpool := x509.NewCertPool()
     certpool.AddCert(ss.CACert)
-    certpool.AppendCertsFromPEM(ss.EncodeCACertToPem().Bytes())
+//    certpool.AppendCertsFromPEM(ss.EncodeCACertToPem().Bytes())
     cfg.ClientCAs = certpool
   }
 
   return cfg, nil
 }
+
+func (ss *SelfSign) TLSClientConfig() (*tls.Config, error) {
+  cfg := NewTLSConfig(ss.Config.CommonName, ss.Config.ClientAuth, ss.Config.MinTLS, ss.Config.MaxTLS, ss.Config.SkipVerify)
+
+  cert, err := tls.X509KeyPair(ss.EncodeClientCertToPem().Bytes(), ss.EncodeClientCertPrivateKeyToPem().Bytes())
+  if err != nil {
+    return nil, err
+  }
+
+  cfg.Certificates = []tls.Certificate{cert}
+
+  certpool := x509.NewCertPool()
+  certpool.AddCert(ss.CACert)
+  cfg.RootCAs = certpool
+
+  return cfg, nil
+}
+
 
 func ParseTlsVersion(s string, defaultvalue uint16) uint16 {
   switch s {

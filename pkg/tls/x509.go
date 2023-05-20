@@ -1,6 +1,7 @@
 package tls
 
 import (
+  "log"
   "net"
   "time"
   "math/big"
@@ -23,12 +24,6 @@ func NewCertificate(opts map[string]string) (*x509.Certificate, error) {
 
   subj := pkix.Name{
     CommonName:    "localhost",
-    Organization:  []string{""},
-    Country:       []string{"US"},
-    Province:      []string{""},
-    Locality:      []string{""},
-    StreetAddress: []string{""},
-    PostalCode:    []string{""},
   }
 
   if v, ok := opts["cn"]; ok { subj.CommonName = v }
@@ -38,7 +33,7 @@ func NewCertificate(opts map[string]string) (*x509.Certificate, error) {
   if v, ok := opts["locality"]; ok { subj.Locality = []string{v} }
   if v, ok := opts["street"]; ok { subj.StreetAddress = []string{v} }
   if v, ok := opts["postal"]; ok { subj.PostalCode = []string{v} }
-  if v, ok := opts["isCA"]; ok { isca = v == "true" }
+  if v, ok := opts["isCA"]; ok { if v == "true" { isca = true } }
   if _, ok := opts["client"]; ok { extkeyusage = append(extkeyusage, x509.ExtKeyUsageClientAuth) }
   if _, ok := opts["server"]; ok { extkeyusage = append(extkeyusage, x509.ExtKeyUsageServerAuth) }
   if v, ok := opts["ips"]; ok { ips = append(ips, net.ParseIP(v)) }
@@ -54,6 +49,7 @@ func NewCertificate(opts map[string]string) (*x509.Certificate, error) {
   cert := &x509.Certificate{
     SerialNumber:           big.NewInt(2019),
     Subject:                subj,
+    SubjectKeyId:           []byte{1, 2, 3, 4, 5, 6},
     NotBefore:              time.Now(),
     NotAfter:               time.Now().AddDate(years, 0, 0),
     IsCA:                   isca,
@@ -61,7 +57,7 @@ func NewCertificate(opts map[string]string) (*x509.Certificate, error) {
     DNSNames:               dnsnames,
     ExtKeyUsage:            extkeyusage,
     KeyUsage:               keyusage,
-    BasicConstraintsValid:  true,
+//    BasicConstraintsValid:  true,
   }
 
   return cert, nil
@@ -107,6 +103,7 @@ func NewRSAKey(opts map[string]string) (*rsa.PrivateKey, error) {
     keysize = i
   }
 
+  log.Printf("[RSA] Generating RSA key of size %d", keysize)
   privkey, err := rsa.GenerateKey(rand.Reader, keysize)
   if err != nil {
     return nil, err

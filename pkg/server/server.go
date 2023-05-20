@@ -3,6 +3,7 @@ package server
 import (
   "os"
   "log"
+  "fmt"
   "strings"
   "net/http"
   "io/ioutil"
@@ -99,7 +100,7 @@ func (s *Server) LoadTLS() error {
     s.Logger.Printf("[SERVER] Loading CA file from '%s'", s.Config.CAFile)
     cacert, err := ioutil.ReadFile(s.Config.CAFile)
     if err != nil {
-      return err
+      return fmt.Errorf("cannot load CA file from '%s' - %s", s.Config.CAFile, err)
     }
 
     capool := x509.NewCertPool()
@@ -113,7 +114,7 @@ func (s *Server) LoadTLS() error {
     s.TLSConfig.Certificates = make([]gotls.Certificate, 1)
     s.TLSConfig.Certificates[0], err = gotls.LoadX509KeyPair(s.Config.CertFile, s.Config.KeyFile)
     if err != nil {
-      return err
+      return fmt.Errorf("cannot load X509 key pair from '%s' and '%s': %s", s.Config.CertFile, s.Config.KeyFile, err)
     }
   }
 
@@ -121,16 +122,21 @@ func (s *Server) LoadTLS() error {
 }
 
 func (s *Server) Configure() error {
+  if s.SelfSign != nil {
+    s.Logger.Printf("[SERVER] Server is already configured with a self-signer")
+    return nil
+  }
+
   ss, err := tls.NewSelfSign(s.Config)
   if err != nil {
-    return err
+    return fmt.Errorf("cannot generate certs - %s", err)
   }
 
   s.SelfSign = ss
 
   tlscfg, err := s.SelfSign.TLSConfig()
   if err != nil {
-    return err
+    return fmt.Errorf("cannot load server TLS config - %s", err)
   }
 
   s.TLSConfig = tlscfg
@@ -157,8 +163,7 @@ func (s *Server) Run() error {
   if s.Config.UseTLS {
     err := s.LoadTLS()
     if err != nil {
-      s.Logger.Printf("Could not configure TLS - %s", err)
-      return err
+      return fmt.Errorf("cannot configure TLS for server - %s", err)
     }
   }
 

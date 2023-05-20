@@ -56,12 +56,12 @@ func NewSelfSign(cfg *config.Config) (*SelfSign, error) {
     return nil, err
   }
 
-  signed, err := SignCertificate(ca, cert, &certkey.PublicKey, cakey)
+  signed, err := SignCertificate(cert, ca, &certkey.PublicKey, cakey)
   if err != nil {
     return nil, err
   }
 
-  clientsigned, err := SignCertificate(ca, clientcert, &clientcertkey.PublicKey, cakey)
+  clientsigned, err := SignCertificate(clientcert, ca, &clientcertkey.PublicKey, cakey)
   if err != nil {
     return nil, err
   }
